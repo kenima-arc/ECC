@@ -8,7 +8,7 @@ tools:
   - Glob
   - WebSearch
   - WebFetch
-model: sonnet
+model: fable
 ---
 
 # Signal Scorer Agent

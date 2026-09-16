@@ -20,7 +20,7 @@ const MAX_TURNS = 25;
 const LLM_TIMEOUT_MS = 90000;
 
 function getLLMModel() {
-  return process.env.ECC_LLM_SUMMARY_MODEL || 'haiku';
+  return process.env.ECC_LLM_SUMMARY_MODEL || 'fable';
 }
 
 function getContextThreshold() {

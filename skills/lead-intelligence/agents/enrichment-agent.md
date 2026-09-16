@@ -6,7 +6,7 @@ tools:
   - Read
   - WebSearch
   - WebFetch
-model: sonnet
+model: fable
 ---
 
 # Enrichment Agent

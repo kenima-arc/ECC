@@ -115,7 +115,7 @@ function loadAgent(filePath) {
     name: frontmatter.name || fileName,
     description: frontmatter.description || '',
     tools: Array.isArray(frontmatter.tools) ? frontmatter.tools : [],
-    model: frontmatter.model || 'sonnet',
+    model: frontmatter.model || 'fable',
     body,
     byteSize: Buffer.byteLength(content, 'utf8'),
   };

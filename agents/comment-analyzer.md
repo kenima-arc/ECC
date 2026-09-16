@@ -1,7 +1,7 @@
 ---
 name: comment-analyzer
 description: Analyze code comments for accuracy, completeness, maintainability, and comment rot risk.
-model: haiku
+model: fable
 tools: Read, Grep, Glob
 ---
 

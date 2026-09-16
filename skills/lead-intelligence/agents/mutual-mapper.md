@@ -7,7 +7,7 @@ tools:
   - Grep
   - WebSearch
   - WebFetch
-model: sonnet
+model: fable
 ---
 
 # Mutual Mapper Agent

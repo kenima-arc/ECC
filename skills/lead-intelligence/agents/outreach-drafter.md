@@ -4,7 +4,7 @@ description: Generates personalized outreach messages for qualified leads. Creat
 tools:
   - Read
   - Grep
-model: sonnet
+model: fable
 ---
 
 # Outreach Drafter Agent

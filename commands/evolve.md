@@ -165,7 +165,7 @@ evolved_from:
 ---
 name: debugger
 description: Systematic debugging agent
-model: sonnet
+model: fable
 evolved_from:
   - debug-check-logs
   - debug-isolate

@@ -2044,7 +2044,7 @@ def _generate_evolved(skill_candidates: list, workflow_instincts: list, agent_ca
         content = "---\n"
         content += f"name: {agent_name}\n"
         content += f"description: {_yaml_quote(_evolved_description(str(cand.get('trigger', '')), cand['instincts'], 'agent'))}\n"
-        content += "model: sonnet\ntools: Read, Grep, Glob\n---\n"
+        content += "model: fable\ntools: Read, Grep, Glob\n---\n"
         content += f"# {agent_name}\n\n"
         content += f"Evolved from {len(cand['instincts'])} instincts "
         content += f"(avg confidence: {cand['avg_confidence']:.0%})\n"

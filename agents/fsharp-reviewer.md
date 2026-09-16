@@ -2,7 +2,7 @@
 name: fsharp-reviewer
 description: Expert F# code reviewer specializing in functional idioms, type safety, pattern matching, computation expressions, and performance. Use for all F# code changes. MUST BE USED for F# projects.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: fable
 ---
 
 ## Prompt Defense Baseline
