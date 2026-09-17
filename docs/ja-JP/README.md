@@ -64,6 +64,8 @@
 | 並列化 | Git ワークツリー、カスケード方法、スケーリング時期 |
 | サブエージェント オーケストレーション | コンテキスト問題、反復検索パターン |
 
+[コマンド クイックリファレンス](./COMMANDS-QUICK-REF.md) | [Astra Review ガイド](./ASTRA-REVIEW-GUIDE.md)（Claude が書いたコードを GPT-6-Astra にレビューさせる）
+
 ---
 
 ## 新機能

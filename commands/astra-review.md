@@ -101,3 +101,4 @@ Remaining:      [unresolved CRITICAL/HIGH, if any]
 - Web search is disabled for the reviewer, the user-level Codex config is not loaded, and every MCP server Codex reports via `codex mcp list` is disabled by name (an empty `mcp_servers` table would not clear them). Only PATH/HOME-style variables reach the Codex process. API keys in your environment are not forwarded.
 - To gate a push on this review, run it before `git push` and refuse to push on exit code 1. Pair with `/santa-loop` when you want two independent reviewers.
 - If Codex is missing, fall back to `/code-review` and say clearly that no cross-provider review happened.
+- Full manual (setup, scopes, push gating, troubleshooting): `docs/ASTRA-REVIEW-GUIDE.md` in the ECC repository.
