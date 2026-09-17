@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "totalCommands": 94,
+  "totalCommands": 95,
   "commands": [
     {
       "command": "aside",
@@ -10,6 +10,15 @@
       "allAgents": [],
       "skills": [],
       "path": "commands/aside.md"
+    },
+    {
+      "command": "astra-review",
+      "description": "Send Claude-written code to GPT-6-Astra (ChatGPT, via Codex CLI) for an independent cross-provider review, then fix what it finds.",
+      "type": "testing",
+      "primaryAgents": [],
+      "allAgents": [],
+      "skills": [],
+      "path": "commands/astra-review.md"
     },
     {
       "command": "auto-update",
@@ -1034,7 +1043,7 @@
       "planning": 2,
       "refactoring": 1,
       "review": 15,
-      "testing": 53
+      "testing": 54
     },
     "topAgents": [
       {

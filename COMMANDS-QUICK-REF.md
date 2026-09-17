@@ -17,6 +17,7 @@
 | `/build-fix` | Detect and fix build errors — delegates to the right build-resolver agent automatically |
 | `/quality-gate` | Quality gate check against project standards |
 | `/santa-loop` | Adversarial dual-review convergence loop — two independent model reviewers must both approve before code ships |
+| `/astra-review` | Send Claude-written code to GPT-6-Astra (ChatGPT, via Codex CLI) for an independent cross-provider review, then fix what it finds |
 
 ---
 
