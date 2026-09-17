@@ -25,6 +25,11 @@ function test(name, fn) {
   }
 }
 
+// Git reports slash-separated paths; the filesystem side must be native so
+// these fixtures hold on Windows as well as POSIX.
+const ROOT = path.resolve('/repo');
+const R = (...parts) => path.join(ROOT, ...parts);
+const OUTSIDE = path.resolve('/outside');
 const REGULAR_FILE = () => ({ isSymbolicLink: () => false, isFile: () => true });
 const enoent = () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
 const lstatOnly = (present) => (file) => (present.includes(file) ? REGULAR_FILE() : enoent());
@@ -95,7 +100,7 @@ test('collectChanges (uncommitted) merges staged, unstaged, and untracked change
   assert.ok(result.diff.includes('+staged change'));
   assert.ok(result.diff.includes('+unstaged change'));
   assert.ok(result.diff.includes('+brand new'));
-  assert.strictEqual(result.root, '/repo');
+  assert.strictEqual(result.root, ROOT);
   assert.strictEqual(result.truncated, false);
 });
 
@@ -122,10 +127,10 @@ test('collectChanges runs git from the repository root, not the current subdirec
     return '';
   };
 
-  scope.collectChanges({ kind: 'uncommitted', value: null }, { runGit, cwd: '/repo/scripts' });
+  scope.collectChanges({ kind: 'uncommitted', value: null }, { runGit, cwd: R('scripts') });
 
-  assert.strictEqual(cwds[0], '/repo/scripts');
-  assert.ok(cwds.slice(1).every((cwd) => cwd === '/repo'), `expected /repo, got ${cwds.slice(1)}`);
+  assert.strictEqual(cwds[0], R('scripts'));
+  assert.ok(cwds.slice(1).every((cwd) => cwd === ROOT), `expected ${ROOT}, got ${cwds.slice(1)}`);
 });
 
 test('collectChanges against a base branch diffs merge-base to the working tree, plus untracked files', () => {
@@ -177,7 +182,7 @@ test('collectChanges for explicit files reads file contents', () => {
 
   const result = scope.collectChanges(
     { kind: 'files', value: ['one.js', 'two.js'] },
-    { runGit: () => '', readFile, cwd: '/repo', lstatSync: REGULAR_FILE }
+    { runGit: () => '', readFile, cwd: ROOT, lstatSync: REGULAR_FILE }
   );
 
   assert.deepStrictEqual(result.files, ['one.js', 'two.js']);
@@ -192,10 +197,10 @@ test('collectChanges resolves explicit relative paths against the invocation dir
 
   const result = scope.collectChanges(
     { kind: 'files', value: ['AGENTS.md'] },
-    { runGit, readFile, cwd: '/repo/docs/zh-CN', lstatSync: REGULAR_FILE }
+    { runGit, readFile, cwd: R('docs', 'zh-CN'), lstatSync: REGULAR_FILE }
   );
 
-  assert.deepStrictEqual(read, ['/repo/docs/zh-CN/AGENTS.md']);
+  assert.deepStrictEqual(read, [R('docs', 'zh-CN', 'AGENTS.md')]);
   assert.deepStrictEqual(result.files, ['docs/zh-CN/AGENTS.md']);
   assert.ok(result.diff.includes('=== docs/zh-CN/AGENTS.md ==='));
 });
@@ -262,7 +267,7 @@ test('collectChanges returns a recovery hint for index and working tree on uncom
 test('collectChanges returns a recovery hint that reads files directly for explicit files', () => {
   const result = scope.collectChanges(
     { kind: 'files', value: ['a.js'] },
-    { runGit: () => '', readFile: () => 'x', cwd: '/repo', lstatSync: REGULAR_FILE }
+    { runGit: () => '', readFile: () => 'x', cwd: ROOT, lstatSync: REGULAR_FILE }
   );
 
   assert.ok(/read/i.test(result.recovery));
@@ -283,7 +288,7 @@ test('files-from-commit reviews current contents of touched files and keeps stil
   ]);
   const readFile = (file) => `now: ${path.basename(file)}`;
 
-  const result = scope.collectChanges({ kind: 'files-from-commit', value: 'HEAD' }, { runGit: git.runGit, readFile, cwd: '/repo/sub', lstatSync: lstatOnly(['/repo/kept.js']) });
+  const result = scope.collectChanges({ kind: 'files-from-commit', value: 'HEAD' }, { runGit: git.runGit, readFile, cwd: R('sub'), lstatSync: lstatOnly([R('kept.js')]) });
 
   assert.deepStrictEqual(result.files, ['kept.js', 'gone-later.js']);
   assert.ok(result.diff.includes('now: kept.js'));
@@ -299,7 +304,7 @@ test('files-from-commit handles a root commit', () => {
     [/^diff-tree --no-renames --no-commit-id --root -r --name-only -z a00b000$/, 'init.js\0'],
   ]);
 
-  const result = scope.collectChanges({ kind: 'files-from-commit', value: 'a00b000' }, { runGit: git.runGit, readFile: () => 'x', cwd: '/repo', lstatSync: REGULAR_FILE });
+  const result = scope.collectChanges({ kind: 'files-from-commit', value: 'a00b000' }, { runGit: git.runGit, readFile: () => 'x', cwd: ROOT, lstatSync: REGULAR_FILE });
 
   assert.deepStrictEqual(result.files, ['init.js']);
 });
@@ -314,7 +319,7 @@ test('files-from-commit includes a file the commit deleted once it has been rest
 
   const result = scope.collectChanges(
     { kind: 'files-from-commit', value: 'HEAD' },
-    { runGit: git.runGit, readFile: () => 'back', cwd: '/repo', lstatSync: lstatOnly(['/repo/restored.js']) }
+    { runGit: git.runGit, readFile: () => 'back', cwd: ROOT, lstatSync: lstatOnly([R('restored.js')]) }
   );
 
   assert.deepStrictEqual(result.files, ['restored.js']);
@@ -326,7 +331,7 @@ test('collectFiles serializes symlinks instead of following them', () => {
     { kind: 'files', value: ['link.js'] },
     {
       runGit: (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? '/repo\n' : ''),
-      cwd: '/repo',
+      cwd: ROOT,
       lstatSync: () => ({ isSymbolicLink: () => true, isFile: () => false }),
       readlinkSync: () => '/etc/passwd',
       readFile: () => { readCalled = true; return 'secret'; },
@@ -344,7 +349,7 @@ test('collectFiles refuses paths that resolve outside the repository root', () =
       { kind: 'files', value: ['../outside.js'] },
       {
         runGit: (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? '/repo\n' : ''),
-        cwd: '/repo',
+        cwd: ROOT,
         lstatSync: () => ({ isSymbolicLink: () => false, isFile: () => true }),
         readFile: () => 'x',
       }
@@ -359,7 +364,7 @@ test('collectFiles refuses non-regular files such as directories', () => {
       { kind: 'files', value: ['src'] },
       {
         runGit: (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? '/repo\n' : ''),
-        cwd: '/repo',
+        cwd: ROOT,
         lstatSync: () => ({ isSymbolicLink: () => false, isFile: () => false }),
         readFile: () => 'x',
       }
@@ -374,8 +379,8 @@ test('collectFiles refuses files under a symlinked parent directory that resolve
       { kind: 'files', value: ['external/secret.txt'] },
       {
         runGit: (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? '/repo\n' : ''),
-        cwd: '/repo',
-        realpathSync: (target) => (target === '/repo/external' ? '/outside' : target),
+        cwd: ROOT,
+        realpathSync: (target) => (target === R('external') ? OUTSIDE : target),
         lstatSync: REGULAR_FILE,
         readFile: () => 'secret',
       }
@@ -395,7 +400,7 @@ test('files-from-commit keeps unresolved deletions in scope with their deletion 
 
   const result = scope.collectChanges(
     { kind: 'files-from-commit', value: 'HEAD' },
-    { runGit: git.runGit, readFile: () => 'x', cwd: '/repo', lstatSync: lstatOnly([]) }
+    { runGit: git.runGit, readFile: () => 'x', cwd: ROOT, lstatSync: lstatOnly([]) }
   );
 
   assert.deepStrictEqual(result.files, ['removed.js']);
@@ -414,7 +419,7 @@ test('files-from-commit labels a file the commit added and the repair removed as
 
   const result = scope.collectChanges(
     { kind: 'files-from-commit', value: 'HEAD' },
-    { runGit: git.runGit, readFile: () => 'x', cwd: '/repo', lstatSync: lstatOnly([]) }
+    { runGit: git.runGit, readFile: () => 'x', cwd: ROOT, lstatSync: lstatOnly([]) }
   );
 
   assert.deepStrictEqual(result.files, ['added-then-removed.js']);
@@ -430,13 +435,13 @@ test('files-from-commit treats ENOTDIR (parent directory replaced by a file) as 
     [/^diff --no-ext-diff --no-textconv parent1 -- config\/settings\.js$/, '-old setting\n'],
   ]);
   const lstatSync = (file) => {
-    if (file === '/repo/config') return REGULAR_FILE();
+    if (file === R('config')) return REGULAR_FILE();
     throw Object.assign(new Error('ENOTDIR'), { code: 'ENOTDIR' });
   };
 
   const result = scope.collectChanges(
     { kind: 'files-from-commit', value: 'HEAD' },
-    { runGit: git.runGit, readFile: () => 'now a file', cwd: '/repo', lstatSync }
+    { runGit: git.runGit, readFile: () => 'now a file', cwd: ROOT, lstatSync }
   );
 
   assert.deepStrictEqual(result.files, ['config', 'config/settings.js']);
@@ -457,7 +462,7 @@ test('files-from-commit treats a dangling symlink as present and serializes the 
     { kind: 'files-from-commit', value: 'HEAD' },
     {
       runGit: git.runGit,
-      cwd: '/repo',
+      cwd: ROOT,
       lstatSync: () => ({ isSymbolicLink: () => true, isFile: () => false }),
       readlinkSync: () => 'missing-target.js',
       readFile: () => { readCalled = true; return 'x'; },
@@ -482,7 +487,7 @@ test('files-from-commit describes a submodule (gitlink) directory instead of fai
 
   const result = scope.collectChanges(
     { kind: 'files-from-commit', value: 'HEAD' },
-    { runGit: git.runGit, cwd: '/repo', lstatSync, readFile: () => { throw new Error('must not read a directory'); } }
+    { runGit: git.runGit, cwd: ROOT, lstatSync, readFile: () => { throw new Error('must not read a directory'); } }
   );
 
   assert.deepStrictEqual(result.files, ['vendor/lib']);
@@ -510,18 +515,18 @@ test('defaultRunGit distinguishes a no-index access failure from a genuine diffe
   const accessError = () => ({ status: 1, stdout: '', stderr: 'error: Could not access nested-repo/' });
 
   assert.throws(
-    () => scope.defaultRunGit(['diff', '--no-index', '--', '/dev/null', 'nested-repo/'], '/repo', {}, accessError),
+    () => scope.defaultRunGit(['diff', '--no-index', '--', '/dev/null', 'nested-repo/'], ROOT, {}, accessError),
     /Could not access/
   );
   const realDiff = () => ({ status: 1, stdout: '+x\n', stderr: '' });
-  assert.strictEqual(scope.defaultRunGit(['diff', '--no-index', '--', '/dev/null', 'x'], '/repo', {}, realDiff), '+x\n');
+  assert.strictEqual(scope.defaultRunGit(['diff', '--no-index', '--', '/dev/null', 'x'], ROOT, {}, realDiff), '+x\n');
 });
 
 test('defaultRunGit fails loudly when a file inventory overflows the buffer', () => {
   const overflow = () => ({ error: Object.assign(new Error('x'), { code: 'ENOBUFS' }), stdout: 'partial.js\0', status: null });
 
   assert.throws(
-    () => scope.defaultRunGit(['ls-files', '--others', '-z'], '/repo', {}, overflow),
+    () => scope.defaultRunGit(['ls-files', '--others', '-z'], ROOT, {}, overflow),
     /exceeded .* inventory would be incomplete/
   );
 });
@@ -529,7 +534,7 @@ test('defaultRunGit fails loudly when a file inventory overflows the buffer', ()
 test('defaultRunGit returns partial output only for diff payloads marked partialOk', () => {
   const overflow = () => ({ error: Object.assign(new Error('x'), { code: 'ENOBUFS' }), stdout: '+partial', status: null });
 
-  const out = scope.defaultRunGit(['diff', 'HEAD', '--'], '/repo', { partialOk: true }, overflow);
+  const out = scope.defaultRunGit(['diff', 'HEAD', '--'], ROOT, { partialOk: true }, overflow);
 
   assert.strictEqual(out, '+partial');
 });
@@ -537,8 +542,8 @@ test('defaultRunGit returns partial output only for diff payloads marked partial
 test('defaultRunGit returns empty output for a failed probe when allowFailure is set', () => {
   const failed = () => ({ status: 128, stdout: '', stderr: 'fatal: bad revision' });
 
-  assert.strictEqual(scope.defaultRunGit(['rev-parse', '-q', '--verify', 'HEAD'], '/repo', { allowFailure: true }, failed), '');
-  assert.throws(() => scope.defaultRunGit(['rev-parse', '-q', '--verify', 'HEAD'], '/repo', {}, failed), /bad revision/);
+  assert.strictEqual(scope.defaultRunGit(['rev-parse', '-q', '--verify', 'HEAD'], ROOT, { allowFailure: true }, failed), '');
+  assert.throws(() => scope.defaultRunGit(['rev-parse', '-q', '--verify', 'HEAD'], ROOT, {}, failed), /bad revision/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

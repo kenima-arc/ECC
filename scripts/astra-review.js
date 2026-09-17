@@ -26,7 +26,9 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 const { collectChanges, describeScope, parseScope } = require('./lib/astra-review/scope');
 const { buildPrompt, effectiveVerdict, formatReport } = require('./lib/astra-review/prompt');
 const codex = require('./lib/astra-review/codex');
@@ -37,20 +39,31 @@ const EXIT_FAIL = 1;
 const EXIT_ERROR = 2;
 
 /**
- * Write the JSON report without following a pre-existing symlink (a
- * predictable path could otherwise be pointed at another file) and readable
- * only by the current user.
+ * Write the JSON report atomically: the content goes into a fresh, exclusively
+ * created 0600 temp file in the same directory, which is then renamed over the
+ * destination. A pre-existing symlink or world-readable file at the destination
+ * is replaced, never followed or reused, so there is no check-then-write race.
  */
 function writeReport(file, content, io = fs) {
-  let existing = null;
+  const temp = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
+  );
+  const fd = io.openSync(temp, 'wx', REPORT_FILE_MODE);
+  let published = false;
   try {
-    existing = io.lstatSync(file);
-  } catch (error) {
-    if (!error || error.code !== 'ENOENT') throw error;
+    // writeFileSync on a descriptor loops until every byte is written; a bare
+    // writeSync can return short and would publish a truncated report.
+    io.writeFileSync(fd, content, 'utf8');
+    io.closeSync(fd);
+    io.renameSync(temp, file);
+    published = true;
+  } finally {
+    if (!published) {
+      try { io.closeSync(fd); } catch { /* already closed */ }
+      try { io.unlinkSync(temp); } catch { /* nothing left to clean */ }
+    }
   }
-  if (existing && existing.isSymbolicLink()) throw new Error(`refusing to write report through symlink: ${file}`);
-  if (existing && !existing.isFile()) throw new Error(`report path is not a regular file: ${file}`);
-  io.writeFileSync(file, content, { encoding: 'utf8', mode: REPORT_FILE_MODE });
 }
 
 function usage() {

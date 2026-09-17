@@ -193,10 +193,15 @@ function readForReview(absolute, root, io) {
   return io.readFile(resolved);
 }
 
+/** Git-style (forward-slash) display path, so reports look the same on every OS. */
+function toGitPath(filePath) {
+  return filePath.split(path.sep).join('/');
+}
+
 function collectFiles(io, files, cwd, root) {
   const entries = files.map((file) => {
     const absolute = path.resolve(cwd, file);
-    const display = path.relative(root, absolute) || file;
+    const display = toGitPath(path.relative(root, absolute)) || file;
     return { display, content: readForReview(absolute, root, io) };
   });
   return {
@@ -290,12 +295,13 @@ function safeRealpath(target) {
 
 function collectChanges(scope, deps = {}) {
   const realpath = deps.realpathSync || safeRealpath;
-  // Canonical paths keep the containment check honest when /tmp is a symlink.
-  const cwd = realpath(deps.cwd || process.cwd());
+  // Canonical, platform-native paths keep the containment check honest when
+  // /tmp is a symlink or when git reports a forward-slash path on Windows.
+  const cwd = realpath(path.resolve(deps.cwd || process.cwd()));
   const runGitIn = deps.runGit || defaultRunGit;
   // Always work from the repository root so paths are root-relative and
   // untracked files outside the current subdirectory are not missed.
-  const root = realpath(runGitIn(['rev-parse', '--show-toplevel'], cwd).trim() || cwd);
+  const root = realpath(path.resolve(runGitIn(['rev-parse', '--show-toplevel'], cwd).trim() || cwd));
   const runGit = (args, options) => runGitIn(args, root, options);
   const io = {
     readFile: deps.readFile || ((file) => fs.readFileSync(file, 'utf8')),

@@ -7,6 +7,8 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const cli = require('../../scripts/astra-review');
@@ -156,26 +158,88 @@ test('runCli passes model, prompt, and timeout through to the reviewer', () => {
   assert.ok(seen.prompt.includes('git show sha:<path>'));
 });
 
-test('writeReport refuses to write through an existing symlink', () => {
-  const io = {
-    lstatSync: () => ({ isSymbolicLink: () => true, isFile: () => false }),
-    writeFileSync: () => { throw new Error('must not write'); },
+function fakeReportIo({ renameFails = false, writeFails = false } = {}) {
+  const events = [];
+  return {
+    events,
+    openSync: (file, flags, mode) => { events.push(['open', file, flags, mode]); return 7; },
+    writeFileSync: (fd, content) => {
+      events.push(['write', fd, content]);
+      if (writeFails) throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+    },
+    writeSync: () => { throw new Error('writeSync can return short; use writeFileSync on the descriptor'); },
+    closeSync: (fd) => { events.push(['close', fd]); },
+    renameSync: (from, to) => {
+      events.push(['rename', from, to]);
+      if (renameFails) throw new Error('EXDEV');
+    },
+    unlinkSync: (file) => { events.push(['unlink', file]); },
   };
+}
 
-  assert.throws(() => cli.writeReport('/tmp/x.json', '{}', io), /symlink/);
+const OUT_DIR = path.resolve('/out');
+const REPORT = path.join(OUT_DIR, 'report.json');
+
+test('writeReport creates a private temp file exclusively and renames it over the destination', () => {
+  const io = fakeReportIo();
+
+  cli.writeReport(REPORT, '{}', io);
+
+  const open = io.events.find((event) => event[0] === 'open');
+  assert.ok(open[1].startsWith(path.join(OUT_DIR, '.report.json.')) && open[1].endsWith('.tmp'), `temp file in same dir: ${open[1]}`);
+  assert.strictEqual(open[2], 'wx');
+  assert.strictEqual(open[3], 0o600);
+  const rename = io.events.find((event) => event[0] === 'rename');
+  assert.strictEqual(rename[1], open[1]);
+  assert.strictEqual(rename[2], REPORT);
+  assert.ok(io.events.findIndex((event) => event[0] === 'close') < io.events.indexOf(rename), 'closed before rename');
 });
 
-test('writeReport creates a user-only file when the path is new', () => {
-  let written = null;
-  const io = {
-    lstatSync: () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); },
-    writeFileSync: (file, content, options) => { written = { file, content, options }; },
-  };
+test('writeReport removes the temp file when the rename fails', () => {
+  const io = fakeReportIo({ renameFails: true });
 
-  cli.writeReport('/tmp/new.json', '{}', io);
+  assert.throws(() => cli.writeReport(REPORT, '{}', io), /EXDEV/);
+  assert.ok(io.events.some((event) => event[0] === 'unlink' && event[1].endsWith('.tmp')));
+});
 
-  assert.strictEqual(written.file, '/tmp/new.json');
-  assert.strictEqual(written.options.mode, 0o600);
+test('writeReport writes the whole content via the descriptor and cleans up when the write fails', () => {
+  const ok = fakeReportIo();
+  cli.writeReport(REPORT, '{"full":true}', ok);
+  assert.deepStrictEqual(ok.events.find((event) => event[0] === 'write').slice(1), [7, '{"full":true}']);
+
+  const io = fakeReportIo({ writeFails: true });
+  assert.throws(() => cli.writeReport(REPORT, '{}', io), /ENOSPC/);
+  assert.ok(io.events.some((event) => event[0] === 'close'), 'descriptor closed after failure');
+  assert.ok(io.events.some((event) => event[0] === 'unlink' && event[1].endsWith('.tmp')), 'temp file removed');
+  assert.ok(!io.events.some((event) => event[0] === 'rename'), 'nothing published');
+});
+
+test('writeReport replaces a symlink and a world-readable file with a private regular file (real fs)', () => {
+  const posix = process.platform !== 'win32';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-report-'));
+  const victim = path.join(dir, 'victim.txt');
+  fs.writeFileSync(victim, 'keep me');
+  const linked = path.join(dir, 'linked.json');
+  let canSymlink = true;
+  try {
+    fs.symlinkSync(victim, linked);
+  } catch {
+    canSymlink = false; // Windows without symlink privilege: replacement is still checked below
+  }
+  const shared = path.join(dir, 'shared.json');
+  fs.writeFileSync(shared, 'old', { mode: 0o644 });
+
+  if (canSymlink) cli.writeReport(linked, '{"a":1}');
+  cli.writeReport(shared, '{"b":2}');
+
+  if (canSymlink) {
+    assert.strictEqual(fs.readFileSync(victim, 'utf8'), 'keep me', 'symlink target untouched');
+    assert.strictEqual(fs.lstatSync(linked).isSymbolicLink(), false, 'symlink replaced by a regular file');
+    assert.strictEqual(fs.readFileSync(linked, 'utf8'), '{"a":1}');
+  }
+  assert.strictEqual(fs.readFileSync(shared, 'utf8'), '{"b":2}');
+  if (posix) assert.strictEqual((fs.statSync(shared).mode & 0o777), 0o600, 'existing 0644 file becomes 0600');
+  assert.deepStrictEqual(fs.readdirSync(dir).filter((name) => name.endsWith('.tmp')), [], 'no temp files left');
 });
 
 test('CLI exits 2 with usage on a bad argument', () => {
