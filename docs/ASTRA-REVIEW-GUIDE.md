@@ -75,7 +75,7 @@ Run `/init` inside Claude Code if you want a project `CLAUDE.md`. ECC hooks and 
 
 ### 2. Implement as usual
 
-Ask Claude Code for the change, or start with `/ecc:plan` or `/ecc:tdd`.
+Ask Claude Code for the change, or start with `/ecc:plan`. For test-first development, run `/ecc:tdd-workflow` (optionally with a `*.plan.md` from `/ecc:plan`) or simply ask Claude Code to "use TDD"; language-specific entry points such as `/ecc:go-test` and `/ecc:react-test` also exist.
 
 ### 3. Ask Astra for a review
 

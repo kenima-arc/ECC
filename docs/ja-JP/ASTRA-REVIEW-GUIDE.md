@@ -75,7 +75,7 @@ claude            # このディレクトリがプロジェクトルートにな
 
 ### 2. いつも通り実装する
 
-Claude Code に変更を依頼するか、`/ecc:plan` や `/ecc:tdd` から始めます。
+Claude Code に変更を依頼するか、`/ecc:plan` から始めます。テスト先行で進めたいときは `/ecc:tdd-workflow`（`/ecc:plan` が出した `*.plan.md` を渡すこともできます）を実行するか、「TDD で進めて」と頼みます。`/ecc:go-test` や `/ecc:react-test` など言語別の入口もあります。
 
 ### 3. Astra にレビューを頼む
 
