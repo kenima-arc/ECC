@@ -48,6 +48,63 @@ claude plugin uninstall ecc@ecc && claude plugin install ecc@ecc
 
 コマンドを実行することが、その差分を OpenAI に送ることへの同意になります。共有が許されないコードには使わないでください。何が外に出るかを事前に見たいときは、後述のスクリプトを `--dry-run` で実行します。
 
+## 自分のプロジェクトでの日常の使い方
+
+プロジェクトを ECC のチェックアウト配下に置く必要はありません。ECC はユーザースコープのプラグインなので `/ecc:astra-review` はどのディレクトリからでも使え、スクリプトは Claude Code を起動した git リポジトリをレビューします。ECC の差分と混ざらないよう、プロジェクトは ECC ツリーの外に置いてください。
+
+### 0. 一度だけの準備（ECC のチェックアウトで）
+
+```bash
+# ECC のチェックアウトを更新したら、インストール済みプラグインを入れ直す
+claude plugin uninstall ecc@ecc && claude plugin install ecc@ecc
+
+# Codex CLI が入っていて ChatGPT でログイン済みか確認（未ログインなら codex login）
+codex --version
+grep auth_mode ~/.codex/auth.json
+```
+
+### 1. プロジェクトを作り、そこで Claude Code を起動する
+
+```bash
+mkdir -p ~/work/arm && cd ~/work/arm
+git init          # 必須。レビューは git の差分を読む
+claude            # このディレクトリがプロジェクトルートになる
+```
+
+プロジェクト用の `CLAUDE.md` が欲しければ Claude Code 内で `/init` を実行します。ECC の hooks とコマンドはユーザースコープで入っているので、ここでもそのまま効きます。
+
+### 2. いつも通り実装する
+
+Claude Code に変更を依頼するか、`/ecc:plan` や `/ecc:tdd` から始めます。
+
+### 3. Astra にレビューを頼む
+
+```text
+/ecc:astra-review                        # コミットされていない変更
+/ecc:astra-review --base main            # PR 前にブランチ全体
+/ecc:astra-review 割り込み処理を重点的に   # 追加指示
+```
+
+Claude は確認できた CRITICAL/HIGH を修正して再実行し、最大 3 ラウンド回します。送らずに送信内容だけ確認するには次を実行します。
+
+```bash
+node ~/.claude/plugins/cache/ecc/ecc/<version>/scripts/astra-review.js --dry-run | less
+```
+
+（`<version>` は `claude plugin list` に表示されるプラグインのバージョンで、例えば `2.2.1` です。コマンド内では同じパスを `${CLAUDE_PLUGIN_ROOT}/scripts/astra-review.js` で参照します。）
+
+### 4. 判定が PASS になったらコミットする
+
+Claude Code にコミットを頼むか、自分で `git commit` します。
+
+### 5. 必要ならプッシュをゲートする
+
+```bash
+node ~/.claude/plugins/cache/ecc/ecc/<version>/scripts/astra-review.js --consent-to-openai --base main && git push
+```
+
+注意: コマンド名には `ecc:` の接頭辞が付きます。実行するたびに差分が OpenAI に送られ、数分かかります。プラグインのキャッシュはバージョンが変わったときしか更新されないので、ECC を更新するごとに手順 0 をやり直してください。
+
 ## スコープ
 
 | フラグ | レビュー対象 | 用途 |

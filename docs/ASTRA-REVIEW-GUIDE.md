@@ -48,6 +48,63 @@ Plugin commands carry the `ecc:` prefix. With a manual (non-plugin) install the 
 
 Every invocation is your consent to send that diff to OpenAI. Do not run it on code you are not allowed to share. To see exactly what would leave the machine, run the script with `--dry-run` (see below).
 
+## Day-to-day workflow in your own project
+
+The project does not need to live inside the ECC checkout. ECC is a user-scope plugin, so `/ecc:astra-review` is available from any directory, and the script reviews whichever git repository Claude Code was started in. Keep your project outside the ECC tree so its diffs are not mixed with ECC's.
+
+### 0. One-time preparation (in the ECC checkout)
+
+```bash
+# refresh the installed plugin whenever the ECC checkout changed
+claude plugin uninstall ecc@ecc && claude plugin install ecc@ecc
+
+# confirm Codex CLI is installed and logged in with ChatGPT (otherwise: codex login)
+codex --version
+grep auth_mode ~/.codex/auth.json
+```
+
+### 1. Create the project and start Claude Code there
+
+```bash
+mkdir -p ~/work/arm && cd ~/work/arm
+git init          # required: the review reads git diffs
+claude            # this directory becomes the project root
+```
+
+Run `/init` inside Claude Code if you want a project `CLAUDE.md`. ECC hooks and commands apply here because they are installed at user scope.
+
+### 2. Implement as usual
+
+Ask Claude Code for the change, or start with `/ecc:plan` or `/ecc:tdd`.
+
+### 3. Ask Astra for a review
+
+```text
+/ecc:astra-review                        # uncommitted changes
+/ecc:astra-review --base main            # the whole branch, before a PR
+/ecc:astra-review Focus on interrupt handling   # extra instructions
+```
+
+Claude fixes confirmed CRITICAL/HIGH findings and re-runs, up to three rounds. To inspect what would be sent without sending it:
+
+```bash
+node ~/.claude/plugins/cache/ecc/ecc/<version>/scripts/astra-review.js --dry-run | less
+```
+
+(`<version>` is the plugin version shown by `claude plugin list`, for example `2.2.1`. Inside a command, the same path is `${CLAUDE_PLUGIN_ROOT}/scripts/astra-review.js`.)
+
+### 4. Commit once the verdict is PASS
+
+Ask Claude Code to commit, or run `git commit` yourself.
+
+### 5. Optionally gate the push
+
+```bash
+node ~/.claude/plugins/cache/ecc/ecc/<version>/scripts/astra-review.js --consent-to-openai --base main && git push
+```
+
+Reminders: the command name carries the `ecc:` prefix; every run sends the diff to OpenAI and takes a few minutes; re-do step 0 after each ECC update because the plugin cache is refreshed only on version changes.
+
 ## Scopes
 
 | Flag | Reviews | Use it for |
